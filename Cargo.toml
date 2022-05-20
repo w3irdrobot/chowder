@@ -2,10 +2,13 @@
 name = "chowder"
 version = "0.1.0"
 edition = "2021"
-authors = ["w3irdrobot <w3irdrobot@protonmail.com>"]
+authors = ["w3irdrobot <w3irdrobot@proton.me>"]
+description = "A terminal frontend for Bisq"
 
 [dependencies]
+clap = { version = "3.1.18", features = ["derive"] }
 prost = "0.10.3"
+thiserror = "1.0.31"
 tokio = { version = "1.18.2", features = ["rt-multi-thread"] }
 tonic = "0.7.2"
 
