@@ -17,9 +17,9 @@ struct Args {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let Args { api_password, host } = Args::parse();
-    let bisq_api = api::Bisq::new(api_password, host).await?;
+    let bisq_api = api::Bisq::new(host, api_password).await?;
 
-    println!("successfully connected");
+    println!("bisq version: {}", bisq_api.version().await?);
 
     Ok(())
 }

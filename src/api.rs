@@ -7,8 +7,11 @@ use api::GetVersionRequest;
 use std::convert::From;
 use std::time::Duration;
 use thiserror::Error;
-use tonic::metadata::errors::InvalidMetadataValue;
+use tonic::metadata::AsciiMetadataValue;
+use tonic::transport::{self, Channel};
 use tonic::{Request, Status};
+
+const DEFAULT_TIMEOUT: u64 = 30;
 
 pub type ApiResult<T> = Result<T, ApiError>;
 
@@ -22,8 +25,8 @@ pub enum ApiError {
     InvalidMetadataValue(String),
 }
 
-impl From<tonic::transport::Error> for ApiError {
-    fn from(error: tonic::transport::Error) -> Self {
+impl From<transport::Error> for ApiError {
+    fn from(error: transport::Error) -> Self {
         ApiError::Connect(error.to_string())
     }
 }
@@ -35,28 +38,33 @@ impl From<Status> for ApiError {
 }
 
 pub struct Bisq {
-    api_password: String,
-    api_endpoint: String,
+    api_password: AsciiMetadataValue,
+    conn: Channel,
 }
 
 impl Bisq {
-    pub async fn new(api_password: String, api_endpoint: String) -> ApiResult<Self> {
-        let mut client = GetVersionClient::connect(api_endpoint.clone()).await?;
-
-        let mut req = Request::new(GetVersionRequest {});
-        req.set_timeout(Duration::from_secs(5));
-
-        let metadata = req.metadata_mut();
+    pub async fn new(api_endpoint: String, api_password: String) -> ApiResult<Self> {
+        let conn = tonic::transport::Endpoint::new(api_endpoint)?.connect_lazy();
         let password = api_password
             .parse()
             .map_err(|_| ApiError::InvalidMetadataValue(api_password.clone()))?;
-        metadata.insert("password", password);
-
-        client.get_version(req).await?;
 
         Ok(Self {
-            api_password,
-            api_endpoint,
+            api_password: password,
+            conn,
         })
+    }
+
+    pub async fn version(&self) -> ApiResult<String> {
+        let mut client = GetVersionClient::new(self.conn.clone());
+        let mut req = Request::new(GetVersionRequest {});
+        req.set_timeout(Duration::from_secs(DEFAULT_TIMEOUT));
+
+        let metadata = req.metadata_mut();
+        metadata.insert("password", self.api_password.clone());
+
+        let resp = client.get_version(req).await?.into_inner();
+
+        Ok(resp.version)
     }
 }
