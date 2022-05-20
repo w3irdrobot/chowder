@@ -5,3 +5,9 @@ edition = "2021"
 authors = ["w3irdrobot <w3irdrobot@protonmail.com>"]
 
 [dependencies]
+prost = "0.10.3"
+tokio = { version = "1.18.2", features = ["rt-multi-thread"] }
+tonic = "0.7.2"
+
+[build-dependencies]
+tonic-build = "0.7.2"
