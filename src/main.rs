@@ -1,5 +1,8 @@
 mod api;
+mod application;
 
+use api::Bisq;
+use application::Application;
 use clap::Parser;
 
 #[derive(Parser, Debug)]
@@ -17,9 +20,11 @@ struct Args {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let Args { api_password, host } = Args::parse();
-    let bisq_api = api::Bisq::new(host, api_password).await?;
+    let bisq_api = Bisq::new(host, api_password).await?;
+    let app = Application::new(bisq_api)?;
 
-    println!("bisq version: {}", bisq_api.version().await?);
+    app.run()?;
+    app.close()?;
 
     Ok(())
 }
