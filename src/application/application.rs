@@ -1,4 +1,5 @@
-use crate::api::Bisq;
+use super::screens::{self, Screen};
+use crate::api::{ApiError, Bisq};
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
     execute,
@@ -14,6 +15,8 @@ pub type ApplicationResult<T> = Result<T, ApplicationError>;
 pub enum ApplicationError {
     #[error(transparent)]
     Io(#[from] io::Error),
+    #[error("API error: {0}")]
+    Api(#[from] ApiError),
 }
 
 pub struct Application {
@@ -28,7 +31,14 @@ impl Application {
         Ok(Self { api, term })
     }
 
-    pub fn run(&self) -> ApplicationResult<()> {
+    pub async fn run(&mut self) -> ApplicationResult<()> {
+        self.api.unlock_wallet().await?;
+        let trades = self.api.trades().await?;
+
+        self.term.draw(move |f| {
+            screens::TradesScreen::new(trades).paint(f);
+        })?;
+
         Ok(())
     }
 

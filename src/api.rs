@@ -1,9 +1,14 @@
-mod api {
+pub mod proto {
     tonic::include_proto!("io.bisq.protobuffer");
 }
 
-use api::get_version_client::GetVersionClient;
-use api::GetVersionRequest;
+use proto::{
+    get_trades_request::Category,
+    get_version_client::GetVersionClient,
+    trades_client::TradesClient,
+    wallets_client::WalletsClient,
+    {GetTradesRequest, GetVersionRequest, TradeInfo, UnlockWalletRequest},
+};
 use std::convert::From;
 use std::time::Duration;
 use thiserror::Error;
@@ -12,6 +17,7 @@ use tonic::transport::{self, Channel};
 use tonic::{Request, Status};
 
 const DEFAULT_TIMEOUT: u64 = 30;
+const DEFAULT_WALLET_TIMEOUT: u64 = 60;
 
 pub type ApiResult<T> = Result<T, ApiError>;
 
@@ -39,11 +45,16 @@ impl From<Status> for ApiError {
 
 pub struct Bisq {
     api_password: AsciiMetadataValue,
+    wallet_password: String,
     conn: Channel,
 }
 
 impl Bisq {
-    pub async fn new(api_endpoint: String, api_password: String) -> ApiResult<Self> {
+    pub async fn new(
+        api_endpoint: String,
+        api_password: String,
+        wallet_password: String,
+    ) -> ApiResult<Self> {
         let conn = tonic::transport::Endpoint::new(api_endpoint)?.connect_lazy();
         let password = api_password
             .parse()
@@ -51,6 +62,7 @@ impl Bisq {
 
         Ok(Self {
             api_password: password,
+            wallet_password,
             conn,
         })
     }
@@ -66,5 +78,36 @@ impl Bisq {
         let resp = client.get_version(req).await?.into_inner();
 
         Ok(resp.version)
+    }
+
+    pub async fn unlock_wallet(&self) -> ApiResult<()> {
+        let mut client = WalletsClient::new(self.conn.clone());
+        let mut req = Request::new(UnlockWalletRequest {
+            password: self.wallet_password.clone(),
+            timeout: DEFAULT_WALLET_TIMEOUT,
+        });
+        req.set_timeout(Duration::from_secs(DEFAULT_TIMEOUT));
+
+        let metadata = req.metadata_mut();
+        metadata.insert("password", self.api_password.clone());
+
+        client.unlock_wallet(req).await?;
+
+        Ok(())
+    }
+
+    pub async fn trades(&self) -> ApiResult<Vec<TradeInfo>> {
+        let mut client = TradesClient::new(self.conn.clone());
+        let mut req = Request::new(GetTradesRequest {
+            category: Category::Closed.into(),
+        });
+        req.set_timeout(Duration::from_secs(DEFAULT_TIMEOUT));
+
+        let metadata = req.metadata_mut();
+        metadata.insert("password", self.api_password.clone());
+
+        let resp = client.get_trades(req).await?.into_inner();
+
+        Ok(resp.trades)
     }
 }
